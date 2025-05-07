@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SECURE LINK</title>
+  <style>
+    /* General Styles */
+    body {
+      font-family: 'Arial', sans-serif;
+      margin: 0;
+      padding: 0;
+      background: linear-gradient(120deg, #84fab0, #8fd3f4);
+      color: #333;
+    }
+
+    h1 {
+      text-align: center;
+      color: #fff;
+      margin: 20px 0;
+      font-size: 2.5em;
+    }
+
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 20px;
+      background: #fff;
+      border-radius: 10px;
+      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+    }
+
+    /* Buttons */
+    button {
+      background-color: #28a745;
+      color: #fff;
+      border: none;
+      border-radius: 5px;
+      padding: 10px 20px;
+      font-size: 16px;
+      cursor: pointer;
+      transition: background-color 0.3s;
+    }
+
+    button:hover {
+      background-color: #218838;
+    }
+
+    button:disabled {
+      background-color: #cccccc;
+      cursor: not-allowed;
+    }
+
+    /* Input Fields */
+    textarea {
+      width: 100%;
+      height: 100px;
+      border: 1px solid #ccc;
+      border-radius: 5px;
+      padding: 10px;
+      margin-bottom: 10px;
+      font-size: 16px;
+    }
+
+    input[type="file"] {
+      margin: 10px 0;
+    }
+
+    /* Received Messages */
+    .received-box {
+      max-height: 300px;
+      overflow-y: auto;
+      border: 1px solid #ddd;
+      border-radius: 5px;
+      padding: 15px;
+      background: #f9f9f9;
+    }
+
+    .message {
+      margin: 5px 0;
+      padding: 10px;
+      border-radius: 5px;
+      background: #e9ffe9;
+      font-size: 14px;
+    }
+
+    .message.error {
+      background: #ffe9e9;
+      color: #d9534f;
+    }
+
+    .divider {
+      margin: 20px 0;
+      border-top: 2px solid #ddd;
+    }
+  </style>
+</head>
+<body>
+  <h1>SECURE LINK</h1>
+  <div class="container">
+    <button id="connect">Connect to ESP8266</button>
+
+    <div class="divider"></div>
+
+    <h3>Send Text Message</h3>
+    <textarea id="textInput" placeholder="Enter your message..."></textarea>
+    <button id="sendText" disabled>Send Text</button>
+
+    <div class="divider"></div>
+
+    <h3>Send Image</h3>
+    <input type="file" id="imageInput" accept="image/*">
+    <button id="sendImage" disabled>Send Image</button>
+
+    <div class="divider"></div>
+
+    <h3>Received Messages</h3>
+    <div id="receivedMessages" class="received-box">
+      <p>No messages received yet.</p>
+    </div>
+  </div>
+
+  <script>
+    let port;
+    let writer;
+    let reader;
+    let decoder = new TextDecoder();
+    let encoder = new TextEncoder();
+
+    const connectButton = document.getElementById("connect");
+    const sendTextButton = document.getElementById("sendText");
+    const sendImageButton = document.getElementById("sendImage");
+    const textInput = document.getElementById("textInput");
+    const imageInput = document.getElementById("imageInput");
+    const receivedMessages = document.getElementById("receivedMessages");
+
+    async function connectToESP() {
+      try {
+        port = await navigator.serial.requestPort();
+        await port.open({ baudRate: 115200 });
+
+        writer = port.writable.getWriter();
+        reader = port.readable.getReader();
+
+        connectButton.textContent = "Connected";
+        connectButton.disabled = true;
+        sendTextButton.disabled = false;
+        sendImageButton.disabled = false;
+
+        alert("Connected to ESP8266!");
+        readFromESP();
+      } catch (error) {
+        alert("Connection failed: " + error.message);
+      }
+    }
+
+    async function readFromESP() {
+      while (port.readable) {
+        try {
+          const { value, done } = await reader.read();
+          if (done) break;
+
+          const message = decoder.decode(value);
+          if (message.trim()) {
+            addReceivedMessage(message);
+          }
+        } catch (error) {
+          console.error("Error reading data:", error);
+          break;
+        }
+      }
+    }
+
+    function addReceivedMessage(message, isError = false) {
+      const messageElement = document.createElement("div");
+      messageElement.classList.add("message");
+      if (isError) messageElement.classList.add("error");
+      messageElement.textContent = message;
+
+      receivedMessages.appendChild(messageElement);
+      receivedMessages.scrollTop = receivedMessages.scrollHeight;
+    }
+
+    async function sendTextMessage() {
+      const message = textInput.value;
+      if (!message.trim()) {
+        alert("Please enter a message!");
+        return;
+      }
+
+      try {
+        const formattedMessage = "text:" + message + "\n";
+        await writer.write(encoder.encode(formattedMessage));
+        addReceivedMessage("Text message sent successfully!");
+      } catch (error) {
+        addReceivedMessage("Failed to send text: " + error.message, true);
+      }
+    }
+
+    async function sendImage() {
+      const file = imageInput.files[0];
+      if (!file) {
+        alert("Please select an image file!");
+        return;
+      }
+
+      try {
+        const reader = new FileReader();
+        reader.onload = async function (event) {
+          const fileData = event.target.result;
+
+          const chunkSize = 240;
+          const totalChunks = Math.ceil(fileData.length / chunkSize);
+
+          for (let i = 0; i < totalChunks; i++) {
+            const chunk = fileData.slice(i * chunkSize, (i + 1) * chunkSize);
+
+            const formattedMessage = "image:" + chunk + "\n";
+            await writer.write(encoder.encode(formattedMessage));
+
+            console.log(`Sent chunk ${i + 1} of ${totalChunks}`);
+          }
+
+          addReceivedMessage("Image sent successfully!");
+        };
+
+        reader.readAsBinaryString(file);
+      } catch (error) {
+        addReceivedMessage("Failed to send image: " + error.message, true);
+      }
+    }
+
+    connectButton.addEventListener("click", connectToESP);
+    sendTextButton.addEventListener("click", sendTextMessage);
+    sendImageButton.addEventListener("click", sendImage);
+  </script>
+</body>
+</html>

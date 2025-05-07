@@ -1,0 +1,1030 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>ESP-NOW Communication</title>
+  <style>
+    /* Theme Variables */
+    :root {
+      --bg-color: #f0f2f5;
+      --container-bg: #ffffff;
+      --text-color: #333333;
+      --header-bg: #128C7E;
+      --header-color: #ffffff;
+      --button-primary: #25D366;
+      --button-hover: #128C7E;
+      --button-disabled: #cccccc;
+      --sent-message-bg: #dcf8c6;
+      --received-message-bg: #ffffff;
+      --input-bg: #ffffff;
+      --divider-color: #e0e0e0;
+      --shadow-color: rgba(0, 0, 0, 0.1);
+    }
+
+    .dark-theme {
+      --bg-color: #202c33;
+      --container-bg: #111b21;
+      --text-color: #e4e6eb;
+      --header-bg: #1f2c34;
+      --header-color: #ffffff;
+      --button-primary: #00a884;
+      --button-hover: #008f72;
+      --button-disabled: #393939;
+      --sent-message-bg: #005c4b;
+      --received-message-bg: #1f2c34;
+      --input-bg: #2a3942;
+      --divider-color: #222e35;
+      --shadow-color: rgba(0, 0, 0, 0.3);
+    }
+
+    /* General Styles */
+    * {
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+    }
+    
+    body {
+      font-family: 'Segoe UI', 'Helvetica Neue', sans-serif;
+      margin: 0;
+      padding: 0;
+      background-color: var(--bg-color);
+      color: var(--text-color);
+      transition: all 0.3s ease;
+      overscroll-behavior-y: contain;
+      height: 100vh;
+      height: 100dvh; /* For mobile browsers with dynamic viewport */
+      width: 100%;
+      position: fixed; /* Prevents bounce on iOS */
+      overflow: hidden;
+    }
+
+    .page-container {
+      max-width: 100%;
+      height: 100%;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+    }
+    
+    @media (min-width: 768px) {
+      .page-container {
+        max-width: 768px;
+      }
+    }
+
+    /* Header */
+    header {
+      background-color: var(--header-bg);
+      color: var(--header-color);
+      padding: 12px 16px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-radius: 10px 10px 0 0;
+      box-shadow: 0 2px 5px var(--shadow-color);
+      z-index: 10;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 1.3em;
+      font-weight: 500;
+    }
+    
+    @media (max-width: 480px) {
+      h1 {
+        font-size: 1.1em;
+      }
+      
+      header {
+        padding: 10px 12px;
+      }
+    }
+
+    /* Theme Toggle */
+    .theme-toggle {
+      background: none;
+      border: none;
+      color: var(--header-color);
+      cursor: pointer;
+      font-size: 24px;
+      padding: 0;
+      display: flex;
+      align-items: center;
+      min-width: 40px;
+      min-height: 40px;
+      justify-content: center;
+    }
+
+    /* Connection Button */
+    .connect-btn {
+      background-color: var(--button-primary);
+      color: white;
+      border: none;
+      border-radius: 5px;
+      padding: 8px 12px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background-color 0.3s;
+      min-height: 36px;
+    }
+
+    .connect-btn:hover {
+      background-color: var(--button-hover);
+    }
+
+    .connect-btn:disabled {
+      background-color: var(--button-disabled);
+      cursor: not-allowed;
+    }
+
+    /* Main Container */
+    .main-container {
+      background-color: var(--container-bg);
+      flex-grow: 1;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 2px 10px var(--shadow-color);
+      border-radius: 0 0 10px 10px;
+      overflow: hidden;
+    }
+
+    /* Chat Area */
+    .chat-container {
+      flex-grow: 1;
+      overflow-y: auto;
+      padding: 16px;
+      background-image: url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZGVmcz48cGF0dGVybiBpZD0iZGlhZ0hhdGNoIiBwYXR0ZXJuVW5pdHM9InVzZXJTcGFjZU9uVXNlIiB3aWR0aD0iNCIgaGVpZ2h0PSI0Ij48cGF0aCBkPSJNLTEsMSBsMiwwIiBzdHJva2U9IiNjY2MiIHN0cm9rZS13aWR0aD0iMC41Ii8+PC9wYXR0ZXJuPjwvZGVmcz48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSJ1cmwoI2RpYWdIYXRjaCkiLz48L3N2Zz4=');
+      background-repeat: repeat;
+      background-size: 100px;
+      -webkit-overflow-scrolling: touch; /* Smooth scrolling on iOS */
+    }
+    
+    @media (max-width: 480px) {
+      .chat-container {
+        padding: 10px;
+      }
+    }
+
+    .message-wrapper {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .message-row {
+      display: flex;
+      width: 100%;
+    }
+
+    .message-row.sent {
+      justify-content: flex-end;
+    }
+
+    .message-row.received {
+      justify-content: flex-start;
+    }
+
+    .message {
+      max-width: 75%;
+      padding: 10px 15px;
+      border-radius: 10px;
+      position: relative;
+      box-shadow: 0 1px 2px var(--shadow-color);
+      word-break: break-word;
+    }
+    
+    @media (max-width: 480px) {
+      .message {
+        max-width: 85%;
+        padding: 8px 12px;
+        font-size: 0.95em;
+      }
+    }
+
+    .message.sent {
+      background-color: var(--sent-message-bg);
+      border-top-right-radius: 0;
+    }
+
+    .message.received {
+      background-color: var(--received-message-bg);
+      border-top-left-radius: 0;
+    }
+
+    .message-time {
+      font-size: 0.7em;
+      opacity: 0.7;
+      text-align: right;
+      margin-top: 5px;
+    }
+
+    .receipt-status {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 3px;
+      margin-top: 2px;
+    }
+
+    .receipt-sent {
+      color: #999;
+    }
+
+    .receipt-delivered {
+      color: #999;
+    }
+    
+    .receipt-failed {
+      color: #f44336;
+    }
+
+    .receipt-read {
+      color: #4fc3f7;
+    }
+
+    .message.error {
+      background-color: #ffdddd;
+      color: #d9534f;
+    }
+
+    /* Bottom Bar */
+    .bottom-bar {
+      display: flex;
+      padding: 10px;
+      background-color: var(--container-bg);
+      border-top: 1px solid var(--divider-color);
+    }
+    
+    @media (max-width: 480px) {
+      .bottom-bar {
+        padding: 8px;
+      }
+    }
+
+    .input-area {
+      display: flex;
+      width: 100%;
+      background-color: var(--input-bg);
+      border-radius: 25px;
+      padding: 0 10px;
+      align-items: center;
+    }
+
+    .text-input {
+      flex-grow: 1;
+      border: none;
+      outline: none;
+      padding: 10px;
+      background-color: transparent;
+      color: var(--text-color);
+      font-size: 15px;
+      resize: none;
+      max-height: 100px;
+      min-height: 24px;
+    }
+    
+    @media (max-width: 480px) {
+      .text-input {
+        font-size: 14px;
+        padding: 8px;
+      }
+    }
+
+    .send-button {
+      background-color: var(--button-primary);
+      color: white;
+      border: none;
+      border-radius: 50%;
+      width: 40px;
+      height: 40px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: background-color 0.3s;
+      min-width: 40px; /* Ensures touchable area */
+    }
+    
+    @media (max-width: 480px) {
+      .send-button {
+        width: 36px;
+        height: 36px;
+        min-width: 36px;
+      }
+    }
+
+    .send-button:hover {
+      background-color: var(--button-hover);
+    }
+
+    .send-button:disabled {
+      background-color: var(--button-disabled);
+      cursor: not-allowed;
+    }
+
+    /* File Upload */
+    .attachment-button {
+      background: none;
+      border: none;
+      color: var(--text-color);
+      font-size: 20px;
+      cursor: pointer;
+      padding: 8px;
+      min-width: 36px;
+      min-height: 36px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .file-input {
+      display: none;
+    }
+
+    /* Additional Features Panel */
+    .features-panel {
+      background-color: var(--container-bg);
+      padding: 15px;
+      border-top: 1px solid var(--divider-color);
+      display: none;
+    }
+
+    .features-panel.active {
+      display: block;
+    }
+
+    .panel-title {
+      font-size: 14px;
+      font-weight: 600;
+      margin-bottom: 10px;
+    }
+    
+    .image-preview-container {
+      margin: 10px 0;
+      text-align: center;
+      max-height: 200px;
+      overflow: hidden;
+      border-radius: 8px;
+      display: none;
+    }
+    
+    .image-preview-container.active {
+      display: block;
+    }
+    
+    .image-preview {
+      max-width: 100%;
+      max-height: 200px;
+      border-radius: 8px;
+      box-shadow: 0 2px 5px var(--shadow-color);
+    }
+    
+    .file-input-container {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+    
+    .file-input-label {
+      background-color: var(--input-bg);
+      color: var(--text-color);
+      padding: 8px 15px;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 14px;
+      text-align: center;
+      flex-grow: 1;
+      border: 1px solid var(--divider-color);
+      min-height: 40px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    
+    /* Toast Notifications */
+    .toast-container {
+      position: fixed;
+      bottom: 80px;
+      left: 0;
+      right: 0;
+      display: flex;
+      justify-content: center;
+      pointer-events: none;
+      z-index: 1000;
+    }
+    
+    .toast {
+      background-color: rgba(0, 0, 0, 0.8);
+      color: white;
+      padding: 8px 16px;
+      border-radius: 20px;
+      font-size: 14px;
+      margin-bottom: 10px;
+      opacity: 0;
+      transform: translateY(20px);
+      transition: opacity 0.3s, transform 0.3s;
+    }
+    
+    .toast.show {
+      opacity: 1;
+      transform: translateY(0);
+    }
+    
+    /* Loading Indicator */
+    .loading-indicator {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background-color: rgba(0, 0, 0, 0.5);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 2000;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.3s;
+    }
+    
+    .loading-indicator.active {
+      opacity: 1;
+      pointer-events: auto;
+    }
+    
+    .spinner {
+      width: 40px;
+      height: 40px;
+      border: 4px solid rgba(255, 255, 255, 0.3);
+      border-radius: 50%;
+      border-top-color: white;
+      animation: spin 1s linear infinite;
+    }
+    
+    @keyframes spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="page-container">
+    <header>
+      <h1>ESP-NOW Communication</h1>
+      <div style="display: flex; gap: 10px;">
+        <button class="connect-btn" id="connect">Connect</button>
+        <button class="theme-toggle" id="themeToggle">🌙</button>
+      </div>
+    </header>
+    
+    <div class="main-container">
+      <div class="chat-container" id="chatContainer">
+        <div class="message-wrapper" id="messageWrapper">
+          <div class="message-row received">
+            <div class="message received">
+              <div>Welcome to ESP-NOW Communication. Connect to an ESP8266 device to begin.</div>
+              <div class="message-time">Just now</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <div class="features-panel" id="featuresPanel">
+        <div class="panel-title">Send Image</div>
+        <div class="file-input-container">
+          <label for="imageInput" class="file-input-label">Browse Image</label>
+          <input type="file" id="imageInput" class="file-input" accept="image/*" capture="environment">
+        </div>
+        <div id="imagePreviewContainer" class="image-preview-container">
+          <img id="imagePreview" class="image-preview" src="#" alt="Preview">
+        </div>
+        <button id="sendImage" class="connect-btn" disabled>Send Image</button>
+      </div>
+      
+      <div class="bottom-bar">
+        <div class="input-area">
+          <button class="attachment-button" id="attachmentBtn">📎</button>
+          <textarea id="textInput" class="text-input" placeholder="Type a message" rows="1"></textarea>
+          <button id="sendText" class="send-button" disabled>➤</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <div class="toast-container" id="toastContainer"></div>
+  
+  <div class="loading-indicator" id="loadingIndicator">
+    <div class="spinner"></div>
+  </div>
+
+  <script>
+    let port;
+    let writer;
+    let reader;
+    let decoder = new TextDecoder();
+    let encoder = new TextEncoder();
+    let darkMode = false;
+    
+    // Message collection buffer
+    let messageBuffer = "";
+    let isCollectingMessage = false;
+    const MESSAGE_START_MARKER = "text:";
+    const MESSAGE_END_MARKER = "\n";
+    
+    // Chunk handling
+    let currentChunks = [];
+    let chunkTimeout = null;
+    const CHUNK_COLLECTION_DELAY = 500; // ms to wait for more chunks
+    let processingChunks = false;
+    
+    // Local storage keys
+    const STORAGE_KEY_MESSAGES = "espnow_messages";
+    
+    // Load previous messages from localStorage
+    function loadStoredMessages() {
+      try {
+        const storedMessages = localStorage.getItem(STORAGE_KEY_MESSAGES);
+        if (storedMessages) {
+          const messages = JSON.parse(storedMessages);
+          messages.forEach(msg => {
+            if (msg.type && msg.content) {
+              addMessage(msg.content, msg.type, false);
+            }
+          });
+        }
+      } catch (error) {
+        console.error("Error loading stored messages:", error);
+      }
+    }
+    
+    // Save a message to localStorage
+    function saveMessageToStorage(message, type) {
+      try {
+        let messages = [];
+        const storedMessages = localStorage.getItem(STORAGE_KEY_MESSAGES);
+        
+        if (storedMessages) {
+          messages = JSON.parse(storedMessages);
+        }
+        
+        messages.push({
+          type: type,
+          content: message,
+          timestamp: new Date().getTime()
+        });
+        
+        // Limit stored messages to prevent localStorage from getting too full
+        if (messages.length > 100) {
+          messages = messages.slice(-100);
+        }
+        
+        localStorage.setItem(STORAGE_KEY_MESSAGES, JSON.stringify(messages));
+      } catch (error) {
+        console.error("Error saving message to storage:", error);
+      }
+    }
+    
+    // Default MAC address of receiver device (from the ESP code)
+    const receiverMAC = "BC:DD:C2:16:A1:4E";
+    
+    // Track message delivery status
+    const messageStatuses = {};
+
+    const connectButton = document.getElementById("connect");
+    const sendTextButton = document.getElementById("sendText");
+    const sendImageButton = document.getElementById("sendImage");
+    const textInput = document.getElementById("textInput");
+    const imageInput = document.getElementById("imageInput");
+    const messageWrapper = document.getElementById("messageWrapper");
+    const themeToggle = document.getElementById("themeToggle");
+    const attachmentBtn = document.getElementById("attachmentBtn");
+    const featuresPanel = document.getElementById("featuresPanel");
+
+    // Theme toggle functionality
+    themeToggle.addEventListener("click", () => {
+      darkMode = !darkMode;
+      document.body.classList.toggle("dark-theme", darkMode);
+      themeToggle.textContent = darkMode ? "☀️" : "🌙";
+    });
+
+    // Attachment button toggle
+    attachmentBtn.addEventListener("click", () => {
+      featuresPanel.classList.toggle("active");
+    });
+
+    // Auto-resize textarea
+    textInput.addEventListener("input", function() {
+      this.style.height = "auto";
+      this.style.height = (this.scrollHeight) + "px";
+    });
+
+    // Show toast message function
+    function showToast(message, duration = 3000) {
+      const toastContainer = document.getElementById('toastContainer');
+      const toast = document.createElement('div');
+      toast.className = 'toast';
+      toast.textContent = message;
+      
+      toastContainer.appendChild(toast);
+      
+      // Force reflow to enable transition
+      toast.offsetHeight;
+      toast.classList.add('show');
+      
+      setTimeout(() => {
+        toast.classList.remove('show');
+        setTimeout(() => {
+          toastContainer.removeChild(toast);
+        }, 300);
+      }, duration);
+    }
+    
+    // Loading indicator functions
+    function showLoading() {
+      document.getElementById('loadingIndicator').classList.add('active');
+    }
+    
+    function hideLoading() {
+      document.getElementById('loadingIndicator').classList.remove('active');
+    }
+    
+    // Mobile detection
+    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    
+    // Add touch-specific event handlers if on mobile
+    if (isMobile) {
+      // Variable to track last touch time for preventing double-tap zoom
+      let lastTouchEnd = 0;
+      
+      // Prevent zoom on double tap for iOS
+      document.addEventListener('touchend', (e) => {
+        const now = Date.now();
+        const DOUBLE_TAP_DELAY = 300;
+        
+        if (now - lastTouchEnd <= DOUBLE_TAP_DELAY) {
+          e.preventDefault();
+        }
+        lastTouchEnd = now;
+      }, false);
+      
+      // Set initial window height for mobile browsers
+      const setViewportHeight = () => {
+        document.documentElement.style.setProperty('--vh', `${window.innerHeight * 0.01}px`);
+      };
+      
+      window.addEventListener('resize', setViewportHeight);
+      window.addEventListener('orientationchange', setViewportHeight);
+      setViewportHeight();
+    }
+
+    async function connectToESP() {
+      try {
+        showLoading();
+        port = await navigator.serial.requestPort();
+        await port.open({ baudRate: 115200 });
+
+        writer = port.writable.getWriter();
+        reader = port.readable.getReader();
+
+        connectButton.textContent = "Connected";
+        connectButton.disabled = true;
+        sendTextButton.disabled = false;
+        sendImageButton.disabled = false;
+
+        // Clear any existing messages before connecting
+        messageWrapper.innerHTML = '';
+        
+        // Reset message collection state
+        messageBuffer = "";
+        isCollectingMessage = false;
+        
+        // Load previous messages from localStorage
+        loadStoredMessages();
+        
+        hideLoading();
+        showToast("Connected to ESP8266 successfully!");
+        addMessage("Connected to ESP8266 successfully!", "received");
+        readFromESP();
+      } catch (error) {
+        hideLoading();
+        showToast("Connection failed: " + error.message, 4000);
+        addMessage("Connection failed: " + error.message, "error");
+      }
+    }
+
+    async function readFromESP() {
+      while (port.readable) {
+        try {
+          const { value, done } = await reader.read();
+          if (done) break;
+
+          const data = decoder.decode(value);
+          
+          // Add this data chunk to our collection
+          collectChunk(data);
+        } catch (error) {
+          console.error("Error reading data:", error);
+          addMessage("Error reading data: " + error.message, "error");
+          break;
+        }
+      }
+    }
+
+    // Collect chunks and process them after a delay
+    function collectChunk(data) {
+      currentChunks.push(data);
+      
+      // Clear any existing timeout
+      if (chunkTimeout) {
+        clearTimeout(chunkTimeout);
+      }
+      
+      // Set a new timeout to process chunks after a delay
+      chunkTimeout = setTimeout(() => {
+        if (!processingChunks) {
+          processCollectedChunks();
+        }
+      }, CHUNK_COLLECTION_DELAY);
+    }
+    
+    // Process all collected chunks
+    function processCollectedChunks() {
+      processingChunks = true;
+      
+      // Combine all chunks
+      const combinedData = currentChunks.join('');
+      
+      // Reset chunk collection
+      currentChunks = [];
+      
+      // Now process the combined data
+      messageBuffer += combinedData;
+      processMessageBuffer();
+      
+      processingChunks = false;
+    }
+    
+    // Function to clean up received messages and remove garbage data
+    function cleanupMessage(message) {
+      // Case 1: If this is already a clean message, return it
+      if (/^[a-zA-Z0-9\s.,!?]+$/.test(message)) {
+        return message;
+      }
+      
+      // For messages that contain garbage with FF markers but might have actual text content
+      if (message.includes("FF") || message.includes("ETX") || message.includes("STX")) {
+        // First try to keep just the ASCII text parts
+        let cleaned = "";
+        for (let i = 0; i < message.length; i++) {
+          const charCode = message.charCodeAt(i);
+          if (charCode >= 32 && charCode <= 126) {
+            cleaned += message[i];
+          } else {
+            cleaned += " ";
+          }
+        }
+        
+        // Remove common garbage patterns but keep the rest of the text
+        cleaned = cleaned.replace(/FF|STX|ETX|Dumno/g, ' ')
+                        .replace(/\s+/g, ' ')
+                        .trim();
+        
+        if (cleaned.length > 0) {
+          return cleaned;
+        }
+      }
+      
+      // Keep common text while removing garbage only
+      let cleaned = message.replace(/[^\x20-\x7E]/g, ' ') // Replace non-ASCII with spaces
+                          .replace(/\s+/g, ' ')           // Condense multiple spaces
+                          .trim();                         // Remove leading/trailing spaces
+      
+      return cleaned;
+    }
+
+    // Process messages in the buffer
+    function processMessageBuffer() {
+      console.log("Processing buffer:", messageBuffer); // Debug log
+      
+      // Process any complete messages in the buffer
+      while (true) {
+        // Look for the start marker of a text message
+        if (!isCollectingMessage) {
+          const startIndex = messageBuffer.indexOf(MESSAGE_START_MARKER);
+          if (startIndex !== -1) {
+            // Found the start of a message, remove anything before it
+            messageBuffer = messageBuffer.substring(startIndex);
+            isCollectingMessage = true;
+            console.log("Found message start, now collecting");
+          } else {
+            // No start marker found, check if it's a direct message without marker
+            if (messageBuffer.trim().length > 0) {
+              // If it ends with a newline, treat it as a complete message
+              if (messageBuffer.includes(MESSAGE_END_MARKER)) {
+                const endIndex = messageBuffer.indexOf(MESSAGE_END_MARKER);
+                let completeMessage = messageBuffer.substring(0, endIndex).trim();
+                
+                console.log("Found message without marker:", completeMessage);
+                
+                // Clean up the message - but keep most of the content
+                completeMessage = cleanupMessage(completeMessage);
+                
+                if (completeMessage.length > 0) {
+                  // Display the complete message
+                  addMessage(completeMessage, "received");
+                }
+                
+                // Remove the processed message from the buffer
+                messageBuffer = messageBuffer.substring(endIndex + MESSAGE_END_MARKER.length);
+              } else {
+                // Incomplete message without marker, wait for more data
+                break;
+              }
+            } else {
+              // Empty buffer, nothing to process
+              break;
+            }
+          }
+        }
+        
+        // If we're collecting a message, look for the end marker
+        if (isCollectingMessage) {
+          const endIndex = messageBuffer.indexOf(MESSAGE_END_MARKER);
+          if (endIndex !== -1) {
+            // Extract the complete message without the markers
+            let completeMessage = messageBuffer.substring(MESSAGE_START_MARKER.length, endIndex).trim();
+            
+            console.log("Found complete message:", completeMessage);
+            
+            // Clean up the message - but keep most of the content
+            completeMessage = cleanupMessage(completeMessage);
+            
+            console.log("After cleanup:", completeMessage);
+            
+            // Display the complete message
+            if (completeMessage.length > 0) {
+              addMessage(completeMessage, "received");
+            }
+            
+            // Remove the processed message from the buffer
+            messageBuffer = messageBuffer.substring(endIndex + MESSAGE_END_MARKER.length);
+            isCollectingMessage = false;
+          } else {
+            // End marker not found yet, wait for more data
+            console.log("Message incomplete, waiting for more data");
+            break;
+          }
+        }
+      }
+    }
+
+    function addMessage(message, type = "sent", saveToStorage = true) {
+      // Save to localStorage if needed
+      if (saveToStorage) {
+        saveMessageToStorage(message, type);
+      }
+      
+      // Create a message row for every message
+      const messageRow = document.createElement("div");
+      messageRow.classList.add("message-row", type);
+      
+      const messageElement = document.createElement("div");
+      messageElement.classList.add("message", type);
+      
+      const messageContent = document.createElement("div");
+      messageContent.textContent = message;
+      messageElement.appendChild(messageContent);
+      
+      const messageTime = document.createElement("div");
+      messageTime.classList.add("message-time");
+      const now = new Date();
+      const timeString = now.getHours().toString().padStart(2, '0') + ":" + 
+                        now.getMinutes().toString().padStart(2, '0');
+      messageTime.textContent = timeString;
+      messageElement.appendChild(messageTime);
+      
+      if (type === "error") {
+        messageElement.classList.add("error");
+      }
+      
+      messageRow.appendChild(messageElement);
+      messageWrapper.appendChild(messageRow);
+      
+      // Scroll to bottom
+      chatContainer.scrollTop = chatContainer.scrollHeight;
+      
+      return messageRow;
+    }
+
+    async function sendTextMessage() {
+      const message = textInput.value;
+      if (!message.trim()) {
+        return;
+      }
+
+      try {
+        const messageRow = addMessage(message, "sent");
+        const formattedMessage = "text:" + message + "\n";
+        await writer.write(encoder.encode(formattedMessage));
+        textInput.value = "";
+        textInput.style.height = "auto";
+      } catch (error) {
+        addMessage("Failed to send text: " + error.message, "error");
+      }
+    }
+
+    async function sendImage() {
+      const file = imageInput.files[0];
+      if (!file) {
+        addMessage("Please select an image file!", "error");
+        return;
+      }
+
+      try {
+        addMessage("Sending image: " + file.name, "sent");
+        
+        const reader = new FileReader();
+        reader.onload = async function (event) {
+          const fileData = event.target.result;
+
+          const chunkSize = 240;
+          const totalChunks = Math.ceil(fileData.length / chunkSize);
+          
+          // Show sending progress
+          const messageRow = addMessage(`Sending image (0/${totalChunks} chunks)...`, "sent");
+          const messageContent = messageRow.querySelector('.message').querySelector('div');
+
+          for (let i = 0; i < totalChunks; i++) {
+            const chunk = fileData.slice(i * chunkSize, (i + 1) * chunkSize);
+
+            const formattedMessage = "image:" + chunk + "\n";
+            await writer.write(encoder.encode(formattedMessage));
+
+            // Update progress every few chunks
+            if (i % 5 === 0 || i === totalChunks - 1) {
+              messageContent.textContent = `Sending image (${i+1}/${totalChunks} chunks)...`;
+            }
+            
+            // Small delay to avoid overwhelming the ESP device
+            await new Promise(resolve => setTimeout(resolve, 50));
+          }
+
+          messageContent.textContent = `Image sent (${totalChunks} chunks)`;
+        };
+
+        reader.readAsBinaryString(file);
+      } catch (error) {
+        addMessage("Failed to send image: " + error.message, "error");
+      }
+    }
+
+    // Enter key sends message
+    textInput.addEventListener("keydown", function(event) {
+      if (event.key === "Enter" && !event.shiftKey) {
+        event.preventDefault();
+        if (!sendTextButton.disabled) {
+          sendTextMessage();
+      }
+    }
+    });
+
+    connectButton.addEventListener("click", connectToESP);
+    sendTextButton.addEventListener("click", sendTextMessage);
+    sendImageButton.addEventListener("click", sendImage);
+
+    // Setup image preview
+    const imagePreview = document.getElementById("imagePreview");
+    const imagePreviewContainer = document.getElementById("imagePreviewContainer");
+    
+    imageInput.addEventListener("change", function() {
+      const file = this.files[0];
+      if (file) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+          imagePreview.src = e.target.result;
+          imagePreviewContainer.classList.add("active");
+          sendImageButton.disabled = !port; // Enable if connected
+          
+          // Update the file input label to show the filename
+          const fileInputLabel = document.querySelector(".file-input-label");
+          const fileName = file.name.length > 20 ? file.name.substring(0, 17) + "..." : file.name;
+          fileInputLabel.textContent = fileName;
+        };
+        reader.readAsDataURL(file);
+      } else {
+        imagePreviewContainer.classList.remove("active");
+        sendImageButton.disabled = true;
+        
+        // Reset the label text
+        const fileInputLabel = document.querySelector(".file-input-label");
+        fileInputLabel.textContent = "Browse Image";
+      }
+    });
+  </script>
+</body>
+</html>
